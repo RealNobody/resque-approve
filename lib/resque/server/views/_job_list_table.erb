@@ -1,0 +1,30 @@
+<div class="table_container">
+  <table>
+    <tr>
+      <th>Class</th>
+      <th>Enqueued</th>
+      <th>Parameters</th>
+      <th>Options</th>
+    </tr>
+    <% jobs.each do |job_details| %>
+      <tr>
+        <td>
+          <a href="<%= u("approve/job_details") %>?<%=
+            { job_id: job_details.id }.to_param %>">
+            <%= job_details.class_name %>
+          </a>
+        </td>
+        <td>
+          <%= time_ago_in_words(job_details.queue_time) %> ago
+          (<%= job_details.queue_time %>)
+        </td>
+        <td>
+          <pre><code><%= "".html_safe + job_details.args.to_yaml %></code></pre>
+        </td>
+        <td>
+          <pre><code><%= "".html_safe + job_details.approve_options.to_hash.to_yaml %></code></pre>
+        </td>
+      </tr>
+    <% end %>
+  </table>
+</div>

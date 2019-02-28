@@ -1,0 +1,18 @@
+<% summary_rows.each do |pending_job| %>
+  <tr>
+    <td>
+      <a href="<%= u("approve") %>/job_list?<%= { approval_key: pending_job.approval_key }.to_param %>">
+        <%= pending_job.approval_key %>
+      </a>
+    </td>
+    <td>
+      <%= pending_job.num_jobs.to_i %>
+    </td>
+    <td>
+      <% if pending_job.first_enqueued.present? %>
+        <%= time_ago_in_words(pending_job.first_enqueued) %> ago
+        (<%= pending_job.first_enqueued %>)
+      <% end %>
+    </td>
+  </tr>
+<% end %>

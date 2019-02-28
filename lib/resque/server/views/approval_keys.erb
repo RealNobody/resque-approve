@@ -1,0 +1,66 @@
+<link href="<%= u("approve/public/approve.css") %>" media="screen" rel="stylesheet" type="text/css">
+
+<h1>Approval Keys</h1>
+
+<% approval_key_list = Resque::Plugins::Approve::ApprovalKeyList.new %>
+
+<div class="approve_reset" />
+
+<%= erb(File.read(Resque::ApproveServer.erb_path("_approval_key_list_pagination.erb")),
+        locals: { queue_list: approval_key_list, page_num: @page_num, page_size: @page_size }) %>
+
+<div class="table_container">
+  <table>
+    <tr>
+      <th><a href="<%= u("approve") %>?<%=
+        { sort:      "approval_key",
+          page_size: @page_size,
+          page_num:  @page_num,
+          order:     approval_key_list.
+              order_param("approval_key", @sort_by, @sort_order) }.to_param %>">
+        Approval Key
+      </a></th>
+      <th><a href="<%= u("approve") %>?<%=
+        { sort:      "num_jobs",
+          page_size: @page_size,
+          page_num:  @page_num,
+          order:     approval_key_list.
+              order_param("num_jobs", @sort_by, @sort_order) }.to_param %>">
+        Pending Jobs
+      </a></th>
+      <th><a href="<%= u("approve") %>?<%=
+        { sort:      "first_enqueued",
+          page_size: @page_size,
+          page_num:  @page_num,
+          order:     approval_key_list.
+              order_param("first_enqueued", @sort_by, @sort_order) }.to_param %>">
+        First Enqueued
+      </a></th>
+    </tr>
+
+    <%= erb(File.read(Resque::ApproveServer.erb_path("_approval_key_rows.erb")),
+            locals: { summary_rows: approval_key_list.queues(@sort_by, @sort_order, @page_num, @page_size) }) %>
+  </table>
+</div>
+
+<%= erb(File.read(Resque::ApproveServer.erb_path("_approval_key_list_pagination.erb")),
+        locals: { queue_list: approval_key_list, page_num: @page_num, page_size: @page_size }) %>
+
+<br/>
+
+<div>
+  <form method="POST" action="<%= u("approve/audit_jobs") %>">
+    <input type="submit" name="" value="Audit Jobs"/>
+  </form>
+  <form method="POST" action="<%= u("approve/audit_queues") %>">
+    <input type="submit" name="" value="Audit Queues"/>
+  </form>
+  <form method="POST" action="<%= u("approve/approve_all_queues") %>">
+    <input type="submit" name="" value="Approve All Queues"/>
+  </form>
+  <form method="POST" action="<%= u("approve/delete_all_queues") %>">
+    <input type="submit" name="" value="Delete All Queues"/>
+  </form>
+</div>
+<div class="approve_reset"/>
+<br/>

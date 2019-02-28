@@ -1,0 +1,82 @@
+<link href="<%= u("approve/public/approve.css") %>" media="screen" rel="stylesheet" type="text/css">
+
+<% job_details = Resque::Plugins::Approve::PendingJob.new(@job_id) %>
+
+<h1>
+  <%= job_details.class_name %>
+</h1>
+
+<p>
+  <a href="<%= u("approve") %>">
+    Approval Keys
+  </a>
+  |
+  <a href="<%= u("approve/job_list") %>?<%= { approval_key: job_details.approval_key }.to_param %>">
+    <%= job_details.approval_key %>
+  </a>
+</p>
+
+<div class="table_container">
+  <table>
+    <tr>
+      <td>
+        Enqueued
+      </td>
+      <td>
+        <%= time_ago_in_words(job_details.queue_time) %> ago
+        (<%= job_details.queue_time %>)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        Class
+      </td>
+      <td>
+        <%= job_details.class_name %>
+      </td>
+    </tr>
+    </tr>
+    <tr>
+      <td>
+        Params
+      </td>
+      <td>
+        <pre><code><%= "".html_safe + job_details.args.to_yaml %></code></pre>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        Queue
+      </td>
+      <td>
+        <%= job_details.approval_queue %>
+      </td>
+    </tr>
+    <% if job_details.approval_at.present? && job_details.approval_at > Time.now %>
+      <tr>
+        <td>
+          Enqueue After
+        </td>
+        <td>
+          <%= job_details.approval_at %>
+        </td>
+      </tr>
+    <% end %>
+  </table>
+</div>
+
+<br/>
+
+<form method="POST" action="<%= u("approve/delete_job") %>?<%=
+  { job_id: @job_id }.to_param %>">
+  <input type="submit" name="" value="Delete Job"/>
+</form>
+
+<form method="POST" action="<%= u("approve/approve_job") %>?<%=
+  { job_id: @job_id }.to_param %>">
+  <input type="submit" name="" value="Approve Job"/>
+</form>
+
+<div class="approve_reset"/>
+
+<br/>

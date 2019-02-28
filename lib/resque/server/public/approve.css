@@ -1,0 +1,56 @@
+.approve_pagination_block {
+    width:           100%;
+    display:         flex;
+    justify-content: space-between;
+    margin-bottom:   5px;
+}
+
+.approve_first_page {
+    margin-right: 5px;
+}
+
+.approve_prev_page {
+    margin-right: 5px;
+    margin-left:  5px;
+}
+
+.approve_page {
+    margin-right: 5px;
+    margin-left:  5px;
+}
+
+.approve_next_page {
+    margin-right: 5px;
+    margin-left:  5px;
+}
+
+.approve_last_page {
+    margin-left: 5px;
+}
+
+.table_container {
+    width:      100%;
+    overflow-x: scroll;
+}
+
+.approve_error {
+    background-color: lightcoral;
+}
+
+.approve_linear_history_div {
+    margin-top: 5px;
+    float:      left;
+}
+
+#approve_search_div {
+    float:         right;
+    margin-bottom: 10px;
+}
+
+#approve_search_div form {
+    margin-top: 0px;
+}
+
+.approve_reset {
+    clear: both;
+}

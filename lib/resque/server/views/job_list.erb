@@ -1,0 +1,58 @@
+<link href="<%= u("approve/public/approve.css") %>" media="screen" rel="stylesheet" type="text/css">
+
+<% pending_queue = Resque::Plugins::Approve::PendingJobQueue.new(@approval_key) %>
+
+<h1>
+  <%= pending_queue.approval_key %>
+</h1>
+
+<p>
+  <a href="<%= u("approve") %>">
+    Approval Keys
+  </a>
+</p>
+
+<% if pending_queue.num_jobs > 0 %>
+  <h1>Jobs</h1>
+
+  <% jobs = pending_queue.paged_jobs(@page_num, @page_size) %>
+  <%= erb(File.read(Resque::ApproveServer.erb_path("_job_pagination.erb")),
+          locals: { pending_queue: pending_queue,
+                    approval_key:  @approval_key,
+                    page_num:      @page_num,
+                    page_size:     @page_size }) %>
+
+  <%= erb(File.read(Resque::ApproveServer.erb_path("_job_list_table.erb")),
+          locals: { jobs: jobs, show_class: false }) %>
+
+  <%= erb(File.read(Resque::ApproveServer.erb_path("_job_pagination.erb")),
+          locals: { pending_queue: pending_queue,
+                    approval_key:  @approval_key,
+                    page_num:      @page_num,
+                    page_size:     @page_size }) %>
+
+  <br/>
+
+  <form method="POST" action="<%= u("approve/delete_queue") %>?<%=
+    { approval_key: pending_queue.approval_key }.to_param %>">
+    <input type="submit" name="" value="Delete All"/>
+  </form>
+
+  <form method="POST" action="<%= u("approve/delete_one_queue") %>?<%=
+    { approval_key: pending_queue.approval_key }.to_param %>">
+    <input type="submit" name="" value="Delete One"/>
+  </form>
+
+  <form method="POST" action="<%= u("approve/approve_queue") %>?<%=
+    { approval_key: pending_queue.approval_key }.to_param %>">
+    <input type="submit" name="" value="Approve All"/>
+  </form>
+
+  <form method="POST" action="<%= u("approve/approve_one_queue") %>?<%=
+    { approval_key: pending_queue.approval_key }.to_param %>">
+    <input type="submit" name="" value="Approve One"/>
+  </form>
+<% end %>
+
+<div class="approve_reset"/>
+<br/>
