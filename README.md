@@ -27,21 +27,97 @@ gem "resque-approve"
 Usage
 ----
 
-###Tracking histories
+###Setup
 
-Simply include the JobHistory class in the class that is enqueued to Resque:
+Simply include the Approve class in the class that is enqueued to Resque:
 
 ```Ruby
-include Resque::Plugins::JobHistory
+include Resque::Plugins::Approve
 ```
 
 ###Server extension
 
 To add the server tab and views to Resqueue, add include the file
-`resque/job_history_server` to your `routes.rb` file.
+`resque/approve_server` to your `routes.rb` file.
 
 ```Ruby
-require "resque/job_history_server"
+require "resque/approve_server"
+```
+
+###Requiring approval for a job
+
+Simply use any or all methods you normally would use to enqueue a job to Resque.
+
+Jobs will run as normal without interferance.
+
+If you want to require a job to wait for approval before being run, simply add
+the following hash options to your job when it is enqueued and the job will
+be delayed until it is approved.
+
+NOTE:  When a job is actually enqueued for execution by Resque, wether initially
+delayed for approval or not, the enqueued job will never include the approval
+options and the job will be included as if the approval options never existed.
+This will allow you to add the approval gem and the approval options to any
+existing job quickly, easily and safely without additional alteration. 
+
+Approval options:
+* `approval_key` - This signals that a job is to be delayed until it is approved.
+  This key is **required** in order to delay a job.  This key is used to
+  approve the job to actually be enqueued.
+
+* `approval_queue` - This is an optional parameter which will allow you to
+  specify which queue the job is enqueued to.  If this is not set, the default
+  queue for the class will be used as normal.
+
+* `approval_at` - This is an optional parameter which will delay enqueue the job
+  at this time when it is enqueued.
+
+  NOTE:  This option requires the [Resque-Scheduler](https://github.com/resque/resque-scheduler)
+  gem.  If you use this option and do not have the `resque-scheduler`, it will
+  throw an exception.  If you do not use this option, the scheduler will not
+  be used.
+
+  If you use `enqueue_at` to enqueue a job and include approval options, then
+  the job will not be available to be approved until it is actually enqueued
+  at some point after the delay time.  This means that approving the job while
+  it is delayed will have no effect.
+
+  In the reverse case, if you enqueue the job and include an `approval_at`
+  option, the job will not be enqueued (even delay enqueued) until it is approved.
+  Once approved, it will run immediately if the current time is after the
+  `approval_at` time, or be delay enqueued for that time.
+
+####Example usage
+
+```Ruby
+class MyJob
+  include Resque::Plugins::Approve
+
+  def self.queue
+    "a_queue"
+  end
+
+  def self.perform(an_arg, another_arg, options = {})
+  end
+end
+
+# enqueue the job normally
+Resque.equeue MyJob, "an arg", "another arg", my_options: "something"
+
+# enqueue the job, but require approval
+Resque.equeue MyJob, "an arg", "another arg", my_options: "something", approval_key: "Approve"
+# Multiple jobs can be delayed for approval
+Resque.equeue MyJob, "an arg 2", "another arg 2", my_options: "something", approval_key: "Approve"
+
+# approve one job for a key
+Resque::Plugins::Approve.approve_one("Approve")
+# approve all jobs for a key
+Resque::Plugins::Approve.approve("Approve")
+
+# remove/reject one job for a key
+Resque::Plugins::Approve.remove_one("Approve")
+# remove/reject all jobs for a key
+Resque::Plugins::Approve.remove("Approve")
 ```
 
 Options
@@ -49,296 +125,182 @@ Options
 
 ###Job Options
 
-You can customize a number of options for each job that the `JobHistory`
-module is included in.
+When added, class methods and class instance variables are added to your job
+class to configure how the Approve gem works with your class. 
 
 ```Ruby
 class MyResqueJob
-  include Resque::Plugins::JobHistory
+  include Resque::Plugins::Approve
 
-  # Set class instance variables to set values for options...
-  @job_history_len = 200
+  # Call class methods or set class instance variables to set values for options...
+  auto_delete_approval_key = false
 end
 ```
 
-**`job_history_len`**
+**`auto_delete_approval_key`**
 
-This is the number of histories to be kept for this class.  This number
-is used for both the list of running and finished jobs.  As new jobs are
-added to the list of running or finished jobs each list will independently
-the oldest job from the list if the number of jobs exceeds this value.
+This option indicates if queues should be auto-deleted when the number of jobs in
+the queue reaches 0.
 
-Usage:
+This option is false by default because of possible race conditions if the
+same key is used on several jobs and they are added/removed from the queuues too
+quickly.
 
-```Ruby
-@job_history_len = 200
-```
-
-**`purge_age`**
-
-If something happens and the execution of a job is interrupted, the system
-will not run callbacks indicating that a job has finished or been canceled.
-In such a case, the system cannot know to remove a job from the running list.
-
-To prevent this from happening, when the running list becomes full, any job
-that is older than `purge_age` will be canceled under the assumption that
-the job is not actually running.
+I would recommend you only use this option if the keys that are used are
+unique in some way, or if their use is infrequent.
 
 Usage:
 
 ```Ruby
-@purge_age = 24.hours
-```
-
-**`exclude_from_linear_history`**
-
-If this is set to true, then the job will not appear in the linear history.
-
-Usage:
-
-```Ruby
-@exclude_from_linear_history = false
-```
-
-**`page_size`**
-
-This is the default page size for the list of running and finished jobs
-for the job.
-
-Usage:
-
-```Ruby
-@page_size = 25
-```
-
-
-###Global Options
-
-You can customize some of the view options for the server if you would like.
-
-**`max_linear_job`**
-
-This is the maximum number of jobs that are kept in the linear history.
-The linear history is kept separately from job histories so limits on the
-number of histories for a job do not affect the linear history.  A job
-can be excluded entirely from the linear history if you want, but if it
-is included, then every instance of that job will show in the linear history
-even if this exceeds the number of instance that show up for the class.
-
-Usage:
-
-```Ruby
-Resque::Plugins::JobHistory::HistoryDetails.max_linear_job = 500
-```
-
-**`linear_page_size`**
-
-This is the default page size that is used when displaying the linear
-history.
-
-Usage:
-
-```
-Resque::Plugins::JobHistory::HistoryDetails.linear_page_size = 25
-```
-
-**`class_list_page_size`**
-
-This is the default page size that is used when displaying the running
-and finished jobs for a job.
-
-Usage:
-
-```
-Resque::Plugins::JobHistory::HistoryDetails.class_list_page_size = 25
+JobClass.auto_delete_approval_key = true
 ```
 
 Server Navigation
 -----------------
 
-####Jobs and a quick summary
+If you include the server exensions, you will be able to use the Resque server
+web interface to view pending jobs and to enqueue or delete them as you need.
 
-![Job History](https://raw.githubusercontent.com/RealNobody/resque-job_history/master/read_me/job_history_page.png)
+####Approval Keys
 
-####Linear Histories
+![Approval Keys](https://raw.githubusercontent.com/RealNobody/resque-approve/master/read_me/approval_key_list.png)
 
-![Job History](https://raw.githubusercontent.com/RealNobody/resque-job_history/master/read_me/linear_history_page.png)
+####Job Queue
 
-####History of a single Job
+![Job Queue](https://raw.githubusercontent.com/RealNobody/resque-approve/master/read_me/pending_job_queue.png)
 
-![Job History](https://raw.githubusercontent.com/RealNobody/resque-job_history/master/read_me/class_details_page.png)
+####Pending Job
 
-####An individual run
-
-![Job History](https://raw.githubusercontent.com/RealNobody/resque-job_history/master/read_me/job_details_page.png)
+![Pending JobHistory](https://raw.githubusercontent.com/RealNobody/resque-approve/master/read_me/job_details.png)
 
 
 Accessing Histories Progamatically
 ----------------------------------
 
-You can easily access the list of histories programatically.
+You can easily access the list of histories programatically and approve or reject
+pending jobs by the approval key used when the job was enqueued.
 
-```
+The simplest method is to use the `Resque::Plugins::Approve` class to approve
+or reject jobs using the approval key.
+
+```Ruby
 class MyJob
-  include Resque::Plugins::JobHistory
+  include Resque::Plugins::Approve
 end
 
-histories = MyJob.job_history
+Resque::Plugins::Approve.approve_one("approval key")
 ```
 
-Some useful methods:
+###Approve
 
-The history for a job includes these useful methods:
-* running_jobs - A list of the currently running jobs.
-* finished_jobs - A list of all finished jobs.
-* linear_jobs - A linear list of all jobs for all classes.
-* max_concurrent_jobs - The maximum number of concurrently running instances
-  of the job.
-* total_failed_jobs - The total number of times the running of this job
-  failed for some reason.
-* num_running_jobs - The number of jobs in the running_jobs list.
-* num_finished_jobs - The number of jobs in the finished_jobs list.
-* total_run_jobs - The number of jobs that have been placed in the
-  running jobs list.
-* last_run - The most recent Job run that was enqueued.
+The following class methods are available directly from `Resque::Plugins::Approve`
 
-Lists of jobs include these useful methods:
-* paged_jobs - A paged list of jobs.
-* jobs - A list of jobs (you can specify sub-ranges).
-* num_jobs - The total number of jobs in the list.
-* total - The total number of times a job has been in this list.
-* latest_job - The most recently added job.
+* `approve_one(approval_key)` - Approves the first job that is still pending
+  with the passed in key and enqueues it.
+  If there are no jobs pending, nothing will happen.  Approvals are not
+  cached for future enqueues.  A job can only be approved after it has been enqueued.
 
-Jobs include these useful methods:
-* class_name - The name of the Job that was enqueued.
-* job_id - A unique identifier for the job.
-* start_time - The time the job started.
-* end_tiem - The time the job ended.
-* duration - The duration of the job (if the job is running, the duration of
-  the job so far.)
-* finished? - Whether or not the job is finished.
-* succeeded? - If the job is still running, or finished successfully.
-* args - The arguments for the job.
-* error - The error message if the job failed.
-* cancel - "stop" the job manually.
-* retry - Retry the job.
-* purge - Remove the job from the history.
+* `approve(approval_key)` - Approves  all jobs that are still pending with the
+  passed in key and enqueues them in the order that they were originally enqueued.
+  If there are no jobs pending, nothing will happen.
 
-The JobList is a list of all of the jobs whose histories have been recorded.
+* `remove_one(approval_key)` - Removes the first job that is pending from
+  the queue without enqueing it.  This rejects the job so that it is not run.
 
-```
-job_list = Resque::Plugins::JobHistory::JobList.new
-```
+* `remove(approval_key)` - Removes all jobs that are still pending with the
+  passed in key without enqueuing them.
 
-It has these useful functions:
-* job_summaries - A list of all of the Jobs that have been run.
-  The summaries are the histories of each job and include the methods
-  detailed for a history.
-* job_classes - An array of strings of the names of all the classes
-  that have been enqueued and their history recorded.
-* job_details - Returns the job history for a single class.
+###ApprovalKeyList
 
-The Cleaner is a utility class used to clean up `Resis`.
-
-```
-Resque::Plugins::JobHistory::Cleaner.purge_all_jobs
-```
-
-The Cleaner class includes these useful functions:
-* purge_all_jobs - Delete all histories.
-* purge_class - Delete the history for a single Job.
-* purge_invalid_jobs - Delete the history for any Job that cannot
-  be instantiated.
-* clean_all_old_running_jobs - For all Jobs, `cancel` any running job
-  that exceds its `purge_age`.
-* fixup_all_keys - Cleanup any keys for jobs that are not in a running,
-  finished or linear list.
-* fixup_job_keys - Cleanup any keys for a particular Job class.
-
-JobSearch is a utility class that you can use to search the histories.  You
-can access the search through the front-end, or you can use it
-programatically to find histories.
-
-When used programatically, you pass in options through a hash.  The options
-for the hash are:
-
-* :search_type - String - Requried - The type of search to be performed.
-  * search_all - Search the class names and the arguments to a run.
-  * search_job - Search the arguments for the runs for a specific class.
-  * search_linear_history - Search the arguments for all runs in the
-    linear history.
-* :job_class_name - String - Required for everything other than "search_all"
-* :search_for - String - The string to search for.
-  * If this string is blank, only jobs with no arguments will be matched.
-  * When arguments are searched, the arguments will be serialized using
-    the Resque argument serializer before being searched.
-* :regex_search - Boolean - Optional - If true, search_for will be interpreted as a
-  regular expression.
-* :case_insensitive - Boolean - Optional - If true the search will be done
-  case insensitive.
-
-The search will run for approximately 10 seconds and return whatever results
-it finds during that time.
-
-The following functions are available for your use:
-
-* search - Perform the search.  If the search completes and has more_records?
-  You can call it again to continue the search.  If you continue a previous
-  search, the previous search results will NOT be cleared and any new
-  results will be appended.
-* more_records? - Returns true if the search stopped before it searched
-  all known records.
-* class_results - After search is called, this will contain a list of
-  HistoryDetails objects for the classes that were found that matched the search
-  criteria.
-* run_results - After search is called, this will contain a list of Job
-  objects that are the individual runs whose arguments matched the search
-  criteria.
+The approval key list gives you access to the list of queues that may contain
+jobs that are pending approval.  Any given queue may or may not have any jobs
+in them.
 
 ```Ruby
-search = Resque::Plugins::JobHistory::JobSearch.
-    new(search_type: "search_all",
-        search_for:  "some.*regex",
-        regex_search: true)
+key_list = Resque::Plugins::ApprovalKeyList.new
 
-# Find all values no matter how long it takes...
-search.search
-search.search while search.more_records?
-
-# Access the results.
-search.class_results
-search.run_results
+key_list.job_queues.map(&:approval_key)
+key_list.approve_all
 ```
 
-# ActiveJob
+The following methods are available on an instance of the `ApprovalKeyList`:
 
-A note on ActiveJob.
+* `approve_all` - Approves all jobs on all queues.
+* `remove_all` - Removes all jobs from all queues and deletes the queues.
+* `job_queues` - An unsorted list of all `PendingJobQueue`s.
+* `queues` - A sorted list of all `PendingJobQueue`s.
 
-If ActiveJob is being used, this gem will try to accomodate the usage of ActiveJob as best it can.
+###PendingJobQueue
 
-As long as ActiveJob has been required before this plugin is required, `Resque::Plugins::JobHistory`
-will be included in the job that ActiveJob uses with Resque to execute jobs.
-
-Then, when this job executes a job, the arguments will be unpacked, and the history will be recorded
-against the actual job being run and the arguments to that job rather than the singleton shared
-ActiveJob class.
-
-Additionally, histories will only be recorded against jobs which include
-`Resque::Plugins::JobHistory`.
-
-There is a problem with this however.  I do not think that the
-`ActiveJob::QueueAdapters::ResqueAdapter::JobWrapper` class and how the attributes are serialized
-are intended to be public.  That is, the class and how it is serialized could probably change.  If
-you are using this gem and ActiveJob, and it stops working, please let me know and I will update it.
-
-If you use ActiveJob and you are not getting histories, it could be caused by the order in which
-things where required.  If so, please try adding an initializer with the following code:
+A `PendingJobQueue` gives you access to the list of jobs with a particular
+approval key.
 
 ```Ruby
-  unless ActiveJob::QueueAdapters::ResqueAdapter::JobWrapper.included_modules.include? Resque::Plugins::JobHistory
-    ActiveJob::QueueAdapters::ResqueAdapter::JobWrapper.include Resque::Plugins::JobHistory
-  end
+queue = Resque::Plugins::PendingJobQueue.new("approval key")
+
+queue.jobs
+queue.approve_one
+queue.approve_all
+queue.pop_job
 ```
+
+The following methods are available on an instance of the `PendingJobQueue`:
+
+* `approve_one` - Enqueues the first job from the queue.
+* `approve_all` - Enqueues all jobs in the queue.
+* `pop_job` - Enqueues the last (most recently enqueued) job in the queue.
+* `remove_one` - Removes the first job from the queue.
+* `remove_all` - Removes all jobs from the queue.
+* `remove_job_pop` - Removes the last (most recently enqueued) job in the queue.
+* `delete` - Removes all jobs from the queue and deletes it.
+* `jobs` - A list of the jobs in the queue.
+
+###PendingJob
+
+A `PendingJob` is the job that is currently delayed.
+
+```Ruby
+queue = Resque::Plugins::PendingJobQueue.new("approval key")
+
+job = queue.jobs(0, 0).first
+
+job.class_name
+job.args
+job.enqueue_job
+```
+
+The following methods are available on an instance of the `PendingJobQueue`:
+
+* `enqueue_job` - Enqueues the job.
+* `delete` - Deletes the job.
+* `class_name` - The class for the job that will be enqueued.
+* `args` - The `*arg`s for the job that will be enqueued.
+* `approval_key` - The approval key for the job.
+* `approval_queue` - The queue that the job will be enqueued to.
+* `approval_at` - If specified the time that the job will be enqueued at.
+* `queue_time` - The time when the job was initially enqueued.
+
+###Cleaner
+
+The `Cleaner` is provided to audit the Redis keys used by the Approve gem
+and make sure that everything is good.  There should be no need for the
+`Cleaner` in normal usage, but if you delete queues there is the ability
+for race conditions to happen where jobs can be lost.  (Which is why by
+default, queues are not deleted.)
+
+```Ruby
+Resque::Plugins::Cleaner.cleanup_jobs
+```
+
+The following methods are available on the `Cleaner` class:
+
+* `cleanup_jobs` - Scans Redis for any jobs that are not actually in the
+  queue that it is supposed to be in and re-adds it.
+* `cleanup_jobs` - Deletes any queues that do not have any jobs.
+  This is a slightly risky scenario as there is a race condition in Redis
+  between when we check if the queue is empty and it is deleted where a job
+  could be added.
+* `purge_all` - Delete all information from Redis related to the `Approve` gem.
 
 ## Contributing
 
