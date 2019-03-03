@@ -133,7 +133,7 @@ class MyResqueJob
   include Resque::Plugins::Approve
 
   # Call class methods or set class instance variables to set values for options...
-  auto_delete_approval_key = false
+  self.auto_delete_approval_key = false
 end
 ```
 
