@@ -19,14 +19,10 @@ Gem::Specification.new do |s|
   s.files      = Dir["{app,config,db,lib}/**/*", "MIT-LICENSE", "Rakefile", "README.rdoc"]
   s.test_files = Dir["spec/**/*"]
 
-  # s.add_dependency "rails", "~> 3.2"
   s.add_dependency "redis"
   s.add_dependency "redis-namespace"
-  s.add_dependency "resque", "~> 1.25"
+  s.add_dependency "resque"
 
-  # s.add_development_dependency "sqlite3"
-  # s.add_development_dependency "actionpack"
-  # s.add_development_dependency "activejob"
   s.add_development_dependency "activesupport"
   s.add_development_dependency "cornucopia"
   s.add_development_dependency "faker"
