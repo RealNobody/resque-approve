@@ -250,9 +250,19 @@ The following methods are available on an instance of the `PendingJobQueue`:
 * `approve_all` - Enqueues all jobs in the queue.
 * `pop_job` - Enqueues the last (most recently enqueued) job in the queue.
 * `remove_one` - Removes the first job from the queue.
+* `remove_num` - Removes the first `X` jobs from the queue.
 * `remove_all` - Removes all jobs from the queue.
 * `remove_job_pop` - Removes the last (most recently enqueued) job in the queue.
 * `delete` - Removes all jobs from the queue and deletes it.
+* `pause` - Pauses a queue and prevents the approval of jobs in the queue.  NOTE:
+  Clearing or deleting a queue either one may not resume the queue automatically.
+  It is possible for a queue to be empty and be paused.  For best results, resume
+  a queue manually before deleting it.
+* `resume` - Unpauses a queue and allows the approval of jobs in the queue.  NOTE:
+  Resuming a queue will NOT re-issue any approvals that were rejected while the queue
+  was paused.  The system simply counts and then tosses approvals that were issueed while
+  the queue is paused.  Once you resume the queue, you will have to manually
+  issue any approvals you may want.
 * `jobs` - A list of the jobs in the queue.
 
 ###PendingJob
@@ -271,7 +281,9 @@ job.enqueue_job
 
 The following methods are available on an instance of the `PendingJobQueue`:
 
-* `enqueue_job` - Enqueues the job.
+* `enqueue_job` - Enqueues the job.  NOTE:  Since this is executed against a specific
+  Job, and not the queue, this will approve the job even if the queue is paused
+  allowing specific jobs to be approved manually while pausing the rest of the queue.
 * `delete` - Deletes the job.
 * `class_name` - The class for the job that will be enqueued.
 * `args` - The `*arg`s for the job that will be enqueued.
@@ -296,7 +308,7 @@ The following methods are available on the `Cleaner` class:
 
 * `cleanup_jobs` - Scans Redis for any jobs that are not actually in the
   queue that it is supposed to be in and re-adds it.
-* `cleanup_jobs` - Deletes any queues that do not have any jobs.
+* `cleanup_queues` - Deletes any queues that do not have any jobs.
   This is a slightly risky scenario as there is a race condition in Redis
   between when we check if the queue is empty and it is deleted where a job
   could be added.
