@@ -12,6 +12,12 @@
   </a>
 </p>
 
+<% if pending_queue.paused? %>
+  <p>
+    Paused. Skipped <%= pending_queue.num_ignored %> resume actions.
+  </p>
+<% end %>
+
 <% if pending_queue.num_jobs > 0 %>
   <h1>Jobs</h1>
 
@@ -37,6 +43,18 @@
     { approval_key: pending_queue.approval_key }.to_param %>">
     <input type="submit" name="" value="Delete All"/>
   </form>
+
+  <% if pending_queue.paused? %>
+    <form method="POST" action="<%= u("approve/resume") %>?<%=
+      { approval_key: pending_queue.approval_key }.to_param %>">
+      <input type="submit" name="" value="Resume"/>
+    </form>
+  <% else %>
+    <form method="POST" action="<%= u("approve/pause") %>?<%=
+      { approval_key: pending_queue.approval_key }.to_param %>">
+      <input type="submit" name="" value="Pause"/>
+    </form>
+  <% end %>
 
   <form method="POST" action="<%= u("approve/delete_one_queue") %>?<%=
     { approval_key: pending_queue.approval_key }.to_param %>">

@@ -120,6 +120,19 @@ RSpec.describe Resque::Plugins::Approve do
       expect(BasicJob).not_to have_received(:perform).with(*param_jobs[job_order.last])
     end
 
+    it "releases a count of jobs" do
+      jobs.each do |job_args|
+        Resque.enqueue BasicJob, *job_args
+      end
+
+      expect(BasicJob).not_to have_received(:perform)
+
+      Resque::Plugins::Approve.approve_num 3, approval_key
+
+      expect(BasicJob).to have_received(:perform).with(*param_jobs[job_order.first])
+      expect(BasicJob).to have_received(:perform).with(*param_jobs[job_order.last])
+    end
+
     it "releases all jobs" do
       jobs.each { |job_args| Resque.enqueue BasicJob, *job_args }
 

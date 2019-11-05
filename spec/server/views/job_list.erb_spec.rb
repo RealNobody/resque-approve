@@ -70,6 +70,26 @@ RSpec.describe "approval_keys.erb" do
       expect(last_response.header["Location"]).to match(%r{approve/job_list\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}$})
       expect(Resque).to have_received(:enqueue_to)
     end
+
+    it "should respond to /approve/pause" do
+      expect(queue).to receive(:pause).and_call_original
+
+      post "/approve/pause?#{{ approval_key: key }.to_param}"
+
+      expect(last_response).to be_redirect
+      expect(last_response.header["Location"]).to match(%r{approve/job_list\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}$})
+      expect(Resque).not_to have_received(:enqueue_to)
+    end
+
+    it "should respond to /approve/resume" do
+      expect(queue).to receive(:resume).and_call_original
+
+      post "/approve/resume?#{{ approval_key: key }.to_param}"
+
+      expect(last_response).to be_redirect
+      expect(last_response.header["Location"]).to match(%r{approve/job_list\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}$})
+      expect(Resque).not_to have_received(:enqueue_to)
+    end
   end
 
   it "should respond to /approve/job_list" do
@@ -85,6 +105,34 @@ RSpec.describe "approval_keys.erb" do
     expect(last_response.body).to match %r{action="/approve/delete_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/approve_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/approve_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+    expect(last_response.body).to match %r{action="/approve/pause\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+
+    expect(last_response.body).to match %r{Class</th>}
+    expect(last_response.body).to match %r{Enqueued</th>}
+    expect(last_response.body).to match %r{Parameters</th>}
+    expect(last_response.body).to match %r{Options</th>}
+
+    jobs.each do |job|
+      expect(last_response.body).to match %r{/job_details\?#{{ job_id: job.id }.to_param}}
+    end
+  end
+
+  it "should respond to /approve/job_list when paused" do
+    queue.pause
+
+    get "/approve/job_list?#{{ approval_key: key }.to_param}"
+
+    expect(last_response).to be_ok
+
+    expect(last_response.body).to be_include(key)
+
+    expect(last_response.body).to match %r{Approval Keys(\n *)?</a>}
+
+    expect(last_response.body).to match %r{action="/approve/delete_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+    expect(last_response.body).to match %r{action="/approve/delete_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+    expect(last_response.body).to match %r{action="/approve/approve_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+    expect(last_response.body).to match %r{action="/approve/approve_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
+    expect(last_response.body).to match %r{action="/approve/resume\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
 
     expect(last_response.body).to match %r{Class</th>}
     expect(last_response.body).to match %r{Enqueued</th>}

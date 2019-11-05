@@ -15,6 +15,24 @@ module Resque
           @approval_key = approval_key
         end
 
+        def pause
+          redis.set(pause_key, true)
+          redis.set(paused_count_key, 0)
+        end
+
+        def paused?
+          redis.get(pause_key)
+        end
+
+        def num_ignored
+          redis.get(paused_count_key).to_i
+        end
+
+        def resume
+          redis.del(paused_count_key)
+          redis.del(pause_key)
+        end
+
         def delete
           jobs.each(&:delete)
         end
@@ -42,9 +60,15 @@ module Resque
         end
 
         def approve_one
+          return false if paused_job_skip?
+
           id = redis.lpop(queue_key)
 
           enqueue_job(id)
+        end
+
+        def approve_num(num_approve)
+          num_approve.times { approve_one }
         end
 
         def approve_all
@@ -52,6 +76,8 @@ module Resque
         end
 
         def pop_job
+          return false if paused_job_skip?
+
           id = redis.rpop(queue_key)
 
           enqueue_job(id)
@@ -103,6 +129,14 @@ module Resque
           ApprovalKeyList.new.remove_key(approval_key) if num_jobs.zero?
         end
 
+        def paused_job_skip?
+          return false unless paused?
+
+          redis.incr(paused_count_key)
+
+          true
+        end
+
         def enqueue_job(id)
           return false unless id.present?
 
@@ -121,6 +155,14 @@ module Resque
 
         def queue_key
           @queue_key ||= "approve.job_queue.#{approval_key}"
+        end
+
+        def pause_key
+          @pause_key ||= "approve.job_queue.#{approval_key}.paused"
+        end
+
+        def paused_count_key
+          @pause_key ||= "approve.job_queue.#{approval_key}.paused.count"
         end
       end
     end

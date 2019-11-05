@@ -110,6 +110,8 @@ module Resque
         delete_one_queue(base)
         approve_queue(base)
         approve_one_queue(base)
+        pause_queue(base)
+        resume_queue(base)
         delete_job(base)
         approve_job(base)
       end
@@ -189,6 +191,26 @@ module Resque
         base.class_eval do
           post "/approve/approve_one_queue" do
             Resque::Plugins::Approve::PendingJobQueue.new(params[:approval_key]).approve_one
+
+            redirect u("approve/job_list?#{{ approval_key: params[:approval_key] }.to_param}")
+          end
+        end
+      end
+
+      def pause_queue(base)
+        base.class_eval do
+          post "/approve/pause" do
+            Resque::Plugins::Approve::PendingJobQueue.new(params[:approval_key]).pause
+
+            redirect u("approve/job_list?#{{ approval_key: params[:approval_key] }.to_param}")
+          end
+        end
+      end
+
+      def resume_queue(base)
+        base.class_eval do
+          post "/approve/resume" do
+            Resque::Plugins::Approve::PendingJobQueue.new(params[:approval_key]).resume
 
             redirect u("approve/job_list?#{{ approval_key: params[:approval_key] }.to_param}")
           end

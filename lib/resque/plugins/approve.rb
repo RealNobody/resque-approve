@@ -22,6 +22,10 @@ module Resque
           PendingJobQueue.new(approval_key).approve_one
         end
 
+        def approve_num(num_approve, approval_key)
+          PendingJobQueue.new(approval_key).approve_num(num_approve)
+        end
+
         def remove(approval_key)
           PendingJobQueue.new(approval_key).remove_all
         end
