@@ -89,6 +89,10 @@ module Resque
           delete_job(id)
         end
 
+        def remove_num(num_approve)
+          num_approve.times { remove_one }
+        end
+
         def remove_all
           true while remove_one
         end

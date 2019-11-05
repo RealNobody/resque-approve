@@ -123,6 +123,33 @@ RSpec.describe Resque::Plugins::Approve::PendingJobQueue do
     end
   end
 
+  describe "approve_num" do
+    it "enqueues the first x jobs" do
+      job_queue.approve_num 3
+
+      expect(Resque).to have_received(:enqueue_to).with "Some_Queue", BasicJob, 0
+      expect(Resque).to have_received(:enqueue_to).with "Some_Queue", BasicJob, 1
+      expect(Resque).to have_received(:enqueue_to).with "Some_Queue", BasicJob, 2
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 3
+
+      expect(job_queue.jobs).not_to be_include jobs[0]
+      expect(job_queue.num_jobs).to eq 1
+    end
+
+    it "does not enqueues the first x jobs if paused" do
+      job_queue.pause
+      job_queue.approve_num 3
+
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 0
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 1
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 2
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 3
+
+      expect(job_queue.jobs).to be_include jobs[0]
+      expect(job_queue.num_jobs).to eq 4
+    end
+  end
+
   describe "pop_job" do
     it "enqueues the last job" do
       job_queue.pop_job
@@ -190,7 +217,7 @@ RSpec.describe Resque::Plugins::Approve::PendingJobQueue do
       expect(job_queue.num_jobs).to eq 3
     end
 
-    it "removes the first job" do
+    it "removes the first job if paused" do
       job_queue.pause
       job_queue.remove_one
 
@@ -201,6 +228,37 @@ RSpec.describe Resque::Plugins::Approve::PendingJobQueue do
 
       expect(job_queue.jobs).not_to be_include jobs[0]
       expect(job_queue.num_jobs).to eq 3
+    end
+  end
+
+  describe "remove_num" do
+    it "removes the first x jobs" do
+      job_queue.remove_num 3
+
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 0
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 1
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 2
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 3
+
+      expect(job_queue.jobs).not_to be_include jobs[0]
+      expect(job_queue.jobs).not_to be_include jobs[1]
+      expect(job_queue.jobs).not_to be_include jobs[2]
+      expect(job_queue.num_jobs).to eq 1
+    end
+
+    it "removes the first x jobs if paused" do
+      job_queue.pause
+      job_queue.remove_num 3
+
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 0
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 1
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 2
+      expect(Resque).not_to have_received(:enqueue_to).with "Some_Queue", BasicJob, 3
+
+      expect(job_queue.jobs).not_to be_include jobs[0]
+      expect(job_queue.jobs).not_to be_include jobs[1]
+      expect(job_queue.jobs).not_to be_include jobs[2]
+      expect(job_queue.num_jobs).to eq 1
     end
   end
 

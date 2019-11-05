@@ -20,7 +20,7 @@ module Resque
         end
 
         def remove_key(key)
-          Resque::Plugins::Approve::PendingJobQueue.new(job.approval_key).resume
+          Resque::Plugins::Approve::PendingJobQueue.new(key).resume
 
           redis.srem(list_key, key)
         end

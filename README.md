@@ -247,10 +247,10 @@ queue.pop_job
 The following methods are available on an instance of the `PendingJobQueue`:
 
 * `approve_one` - Enqueues the first job from the queue.
+* `approve_num` - Enqueues the first `X` jobs from the queue.
 * `approve_all` - Enqueues all jobs in the queue.
 * `pop_job` - Enqueues the last (most recently enqueued) job in the queue.
 * `remove_one` - Removes the first job from the queue.
-* `remove_num` - Removes the first `X` jobs from the queue.
 * `remove_all` - Removes all jobs from the queue.
 * `remove_job_pop` - Removes the last (most recently enqueued) job in the queue.
 * `delete` - Removes all jobs from the queue and deletes it.
