@@ -166,7 +166,7 @@ module Resque
         end
 
         def paused_count_key
-          @pause_key ||= "approve.job_queue.#{approval_key}.paused.count"
+          @paused_count_key ||= "approve.job_queue.#{approval_key}.paused.count"
         end
       end
     end

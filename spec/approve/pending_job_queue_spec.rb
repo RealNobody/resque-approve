@@ -377,14 +377,34 @@ RSpec.describe Resque::Plugins::Approve::PendingJobQueue do
       expect(job_queue).to be_paused
     end
 
+    it "counts approvals while paused" do
+      expect(job_queue).not_to be_paused
+      job_queue.pause
+      expect(job_queue).to be_paused
+      job_queue.pause
+      expect(job_queue).to be_paused
+
+      job_queue.approve_num 8
+      job_queue.approve_one
+      expect(job_queue).to be_paused
+      expect(job_queue.num_ignored).to eq 9
+    end
+
     it "can be resumed" do
       expect(job_queue).not_to be_paused
       job_queue.resume
       expect(job_queue).not_to be_paused
       job_queue.pause
       expect(job_queue).to be_paused
+
+      job_queue.approve_num 8
+      job_queue.approve_one
+      expect(job_queue).to be_paused
+      expect(job_queue.num_ignored).to eq 9
+
       job_queue.resume
       expect(job_queue).not_to be_paused
+      expect(job_queue.num_ignored).to be_zero
     end
   end
 end
