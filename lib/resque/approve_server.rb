@@ -95,7 +95,7 @@ module Resque
 
       def add_static_files(base)
         base.class_eval do
-          get %r{approve/public/([a-z_]+\.[a-z]+)} do
+          get %r{/approve/public/([a-z_]+\.[a-z]+)} do
             send_file Resque::ApproveServer.public_path(params[:captures]&.first)
           end
         end
