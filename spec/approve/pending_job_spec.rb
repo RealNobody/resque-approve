@@ -38,6 +38,13 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
     job
   end
+  let(:approval_hash_only_args_job) do
+    job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid, class_name: job_class, args: [some_hash: "hash", approval_key: key])
+
+    key_list.add_job(job)
+
+    job
+  end
   let(:approval_no_hash_args_job) do
     job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid,
                                                    class_name: job_class,
@@ -87,36 +94,51 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
   describe "initialize" do
     it "extracts delay arguments from job with no argument" do
       expect(no_args_job.args).to eq []
+      expect(Resque::Plugins::Approve::PendingJob.new(no_args_job.id).args).to eq []
       expect(no_args_job.approve_options).to eq({}.with_indifferent_access)
     end
 
     it "extracts delay arguments from job with no hash arguments" do
       expect(no_hash_args_job.args).to eq [1, "fred", "something else", 888]
+      expect(Resque::Plugins::Approve::PendingJob.new(no_hash_args_job.id).args).to eq [1, "fred", "something else", 888]
       expect(no_hash_args_job.approve_options).to eq({}.with_indifferent_access)
     end
 
     it "extracts delay arguments from job with no approval arguments" do
       expect(hash_args_job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(hash_args_job.id).args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
       expect(hash_args_job.approve_options).to eq({}.with_indifferent_access)
     end
 
     it "extracts delay arguments from job with no argument and approval_args" do
       expect(approval_only_args_job.args).to eq []
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_only_args_job.id).args).to eq []
       expect(approval_only_args_job.approve_options).to eq("approval_key" => key)
+    end
+
+    it "extracts delay arguments from job with only hash arguments and approval_args" do
+      expect(approval_hash_only_args_job.args).to eq [{ "some_hash" => "hash" }]
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_hash_only_args_job.id).args).to eq [{ "some_hash" => "hash" }]
+      expect(approval_hash_only_args_job.approve_options).to eq("approval_key" => key)
     end
 
     it "extracts delay arguments from job with no hash arguments and approval args" do
       expect(approval_no_hash_args_job.args).to eq [1, "fred", "something else", 888]
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_no_hash_args_job.id).args).to eq [1, "fred", "something else", 888]
       expect(approval_no_hash_args_job.approve_options).to eq("approval_key" => key)
     end
 
     it "extracts delay arguments from job with no approval arguments and approval args" do
       expect(approval_hash_args_job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_hash_args_job.id).args).
+          to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
       expect(approval_hash_args_job.approve_options).to eq("approval_key" => key)
     end
 
     it "extracts all delay arguments from job with no approval arguments and approval args" do
       expect(approval_all_args_job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_all_args_job.id).args).
+          to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
 
       expect(approval_all_args_job.approve_options[:approval_key]).to eq key
       expect(approval_all_args_job.approve_options["approval_key"]).to eq key
@@ -124,8 +146,8 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
       expect(approval_all_args_job.approve_options[:approval_queue]).to eq "Another Queue"
       expect(approval_all_args_job.approve_options["approval_queue"]).to eq "Another Queue"
 
-      expect(approval_all_args_job.approve_options[:approval_at]).to be_within(2.seconds).of(2.hours.from_now)
-      expect(approval_all_args_job.approve_options["approval_at"]).to be_within(2.seconds).of(2.hours.from_now)
+      expect(approval_all_args_job.approve_options[:approval_at].to_time).to be_within(2.seconds).of(2.hours.from_now)
+      expect(approval_all_args_job.approve_options["approval_at"].to_time).to be_within(2.seconds).of(2.hours.from_now)
     end
   end
 
@@ -165,6 +187,7 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
     it "has args" do
       expect(job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(job.id).args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
     end
 
     it "has the approval_key" do

@@ -158,13 +158,13 @@ module Resque
         end
 
         def extract_approve_options
-          return if args.blank? || !args[-1].is_a?(Hash)
+          return if args.blank? || !@args[-1].is_a?(Hash)
 
-          self.approve_options = args.pop
+          self.approve_options = @args.pop
 
           options = approve_options.slice!(:approval_key, :approval_queue, :approval_at)
 
-          args << options.to_hash if options.present?
+          @args << options.to_hash if options.present?
         end
 
         def encode_args(*args)

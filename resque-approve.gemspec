@@ -27,11 +27,10 @@ Gem::Specification.new do |s|
   s.add_development_dependency "cornucopia"
   s.add_development_dependency "faker"
   s.add_development_dependency "gem-release"
-  s.add_development_dependency "rack-test"
   s.add_development_dependency "resque-scheduler"
-  s.add_development_dependency "rspec-rails"
+  s.add_development_dependency "rspec-rails", "> 3.9.1"
   s.add_development_dependency "rubocop"
   s.add_development_dependency "simplecov"
-  s.add_development_dependency "sinatra", "~> 1.4"
+  s.add_development_dependency "sinatra"
   s.add_development_dependency "timecop"
 end
