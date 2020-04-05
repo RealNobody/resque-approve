@@ -155,6 +155,101 @@ Usage:
 JobClass.auto_delete_approval_key = true
 ```
 
+**`default_queue_name`**
+
+This option defines the default queue name used for a job that is to be approved.  The
+value will default to the same value as the queue name for Resque.
+
+This would be used to simplify approval calls and not have to copy the approval key throughout
+the code.
+
+Usage:
+
+```Ruby
+JobClass.default_queue_name = "Some queue name"
+
+# A simple alternative to: Resque.enqueue JobClass, some_parameters, approval_key: JobClass.default_queue_name
+Resque.enqueue JobClass, some_parameters, requires_approval: true
+
+# A simple alias of: Resque::Plugins::Approve.approve_num(num_approve, JobClass.default_queue_name)
+JobClass.approve_one
+```
+
+**`max_active_jobs`**
+
+This option is defaulted to -1 (disabled).
+
+This option allows your job to behave as if it auto-approves if the number of active jobs in
+the queue is below the limit.  NOTE:  Only jobs that have a `max_active_jobs` value are counted.
+
+In order to signal that this option is active and to count the jobs and place into the approval
+queue if there are too many running jobs, you must include `requires_approval` or `approval_key`
+to try to place the job into the approval queue.  It is upon placing it into the queue that
+the number of running jobs is checked and the auto-enqueing is done.
+
+Because jobs which require approval are auto-enqueued when available, any attempt to enqueue
+more than `max_active_jobs` will be blocked and the job will simply stay in the approval queue
+even if individually/specifically approved.
+
+When a job that contains this option is run, a module is added which overrides the classes `perform`
+method that is used by Resque to approve more jobs when a job is completed.  This ensures/allows
+more jobs to be run once the queue is full.
+
+A note on why you may want to use this option.  Resque does a good job of managing enqueued jobs on
+a first come first served basis.  The Approval queue does the same thing (by default), but does not
+put the queued jobs into the Resque queue.  If you have a job that needs to perform an action a large
+number of times, you can enqueue a separate job for each time.  (For
+example, if you need to perform an action on every or several items in a table)  You then split the
+work into two jobs.  One job to select and enqueue a second job to do the work, and one job to
+do the actual work.  This separates the task of picking the records to work on from the actual
+work and allows for easier error handling if any single sub-task fails (you don't have to catch and
+record it or remember where you were in the loop or whatever.)  The problem if you do this is that you
+clog Resque with the large number of small jobs to be performed.  Setting the job with a default delay
+queue name and a max_active_jobs allows you simply enqueue the jobs with the parameter
+`requires_approval: true`.  The jobs will start immediately and run till all of the jobs are completed,
+but at any given time, the total number of jobs in Resque will be `max_active_jobs`.  This prevents
+Resque from being clogged up with the small jobs.  Other incoming jobs will have a chance to be
+queued, and be performed in a timely manner rather than waiting for the large number of small jobs
+to all complete first. 
+
+Usage:
+
+```Ruby
+JobClass.max_active_jobs = 10
+```
+
+Example usage of the option:
+
+```Ruby
+class JobClass
+  include Resque::Plugins::Approve
+
+  self.max_active_jobs = 10
+  self.default_queue_name = "Some Queue Name"
+
+  def self.perform
+    do_something
+  end
+end
+
+class JobQueuingClass
+  class << self
+    def perform(*args)
+      some_list_of_jobs_to_perform(*args).each do
+        # The first `max_active_jobs` number of jobs will be automatically
+        # run without explicit approval, then after that, as jobs complete
+        # the next job waiting will be approved such that at any tiven time
+        # there should be up to `max_active_jobs` running.
+        #
+        # When the last job is run, the system will stop because there is
+        # nothing else to approve.
+        Resque.enqueue JobClass, requires_approval: true
+      end
+    end
+  end
+end
+```
+
 Server Navigation
 -----------------
 
@@ -171,8 +266,7 @@ web interface to view pending jobs and to enqueue or delete them as you need.
 
 ####Pending Job
 
-![Pending JobHistory](https://raw.githubusercontent.com/RealNobody/resque-approve/master/read_me/job_details.png)
-
+![Pending Job Details](https://raw.githubusercontent.com/RealNobody/resque-approve/master/read_me/job_details.png)
 
 Accessing Histories Progamatically
 ----------------------------------

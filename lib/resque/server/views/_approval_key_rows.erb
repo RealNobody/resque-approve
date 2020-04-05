@@ -9,6 +9,9 @@
       <%= pending_job.num_jobs.to_i %>
     </td>
     <td>
+      <%= pending_job.num_running.to_i %>
+    </td>
+    <td>
       <% if pending_job.first_enqueued.present? %>
         <%= time_ago_in_words(pending_job.first_enqueued) %> ago
         (<%= pending_job.first_enqueued %>)

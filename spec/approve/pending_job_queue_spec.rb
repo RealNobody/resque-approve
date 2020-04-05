@@ -355,7 +355,7 @@ RSpec.describe Resque::Plugins::Approve::PendingJobQueue do
   describe "first_enqueued" do
     it "returns the time of the first enqueued item" do
       4.times do |index|
-        expect(job_queue.first_enqueued).to be_within(1.second).of((5 - index).hours.ago)
+        expect(job_queue.first_enqueued).to be_within(2.seconds).of((5 - index).hours.ago)
 
         job_queue.remove_one
       end

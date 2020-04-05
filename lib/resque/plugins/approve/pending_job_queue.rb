@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+# rubocop:disable Metrics/ClassLength
+
 module Resque
   module Plugins
     module Approve
@@ -13,6 +15,22 @@ module Resque
 
         def initialize(approval_key)
           @approval_key = approval_key
+        end
+
+        def num_running
+          redis.get(running_key)
+        end
+
+        def reset_running
+          redis.set(running_key, 0)
+        end
+
+        def increment_running
+          redis.incr(running_key)
+        end
+
+        def decrement_running
+          redis.decr(running_key)
         end
 
         def pause
@@ -165,6 +183,10 @@ module Resque
           @pause_key ||= "approve.job_queue.#{approval_key}.paused"
         end
 
+        def running_key
+          @running_key ||= "approve.job_queue.#{approval_key}.running"
+        end
+
         def paused_count_key
           @paused_count_key ||= "approve.job_queue.#{approval_key}.paused.count"
         end
@@ -172,3 +194,5 @@ module Resque
     end
   end
 end
+
+# rubocop:enable Metrics/ClassLength

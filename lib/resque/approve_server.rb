@@ -107,6 +107,7 @@ module Resque
         delete_all_queues(base)
         approve_all_queues(base)
         delete_queue(base)
+        reset_running(base)
         delete_one_queue(base)
         approve_queue(base)
         approve_one_queue(base)
@@ -163,6 +164,16 @@ module Resque
             Resque::Plugins::Approve::ApprovalKeyList.new.remove_key(params[:approval_key])
 
             redirect u("approve")
+          end
+        end
+      end
+
+      def reset_running(base)
+        base.class_eval do
+          post "/approve/reset_running" do
+            Resque::Plugins::Approve::PendingJobQueue.new(params[:approval_key]).reset_running
+
+            redirect u("approve/job_list?#{{ approval_key: params[:approval_key] }.to_param}")
           end
         end
       end

@@ -67,6 +67,14 @@ RSpec.describe Resque::Plugins::Approve do
     expect(BasicJob.auto_delete_approval_key).to be_falsey
   end
 
+  it "has max_active_jobs" do
+    expect(BasicJob.max_active_jobs).to eq(-1)
+  end
+
+  it "has default_queue_name" do
+    expect(BasicJob.default_queue_name).to eq "Some_Queue"
+  end
+
   it "does not delay jobs that are enqueued without delay args" do
     Resque.enqueue BasicJob, *test_args_with_hash
 
@@ -196,6 +204,51 @@ RSpec.describe Resque::Plugins::Approve do
       expect { BasicJob.before_enqueue_approve(*test_args_without_hash_approve) }.not_to(change { test_args_without_hash })
       expect(BasicJob.before_enqueue_approve(*test_args_with_hash_approve)).to be_falsey
       expect { BasicJob.before_enqueue_approve(*test_args_with_hash_approve) }.not_to(change { test_args_with_hash })
+    end
+  end
+
+  describe "approval methods" do
+    let(:pending_job_queue) do
+      instance_double(Resque::Plugins::Approve::PendingJobQueue,
+                      approve_all: nil,
+                      approve_one: nil,
+                      approve_num: nil,
+                      remove_all:  nil,
+                      remove_one:  nil)
+    end
+
+    before(:each) do
+      allow(Resque::Plugins::Approve::PendingJobQueue).to receive(:new).with("Some_Queue").and_return pending_job_queue
+    end
+
+    it "responds to approve" do
+      BasicJob.approve
+
+      expect(pending_job_queue).to have_received(:approve_all)
+    end
+
+    it "responds to approve_one" do
+      BasicJob.approve_one
+
+      expect(pending_job_queue).to have_received(:approve_one)
+    end
+
+    it "responds to approve_one" do
+      BasicJob.approve_num 12
+
+      expect(pending_job_queue).to have_received(:approve_num).with(12)
+    end
+
+    it "responds to remove" do
+      BasicJob.remove
+
+      expect(pending_job_queue).to have_received(:remove_all)
+    end
+
+    it "responds to remove_one" do
+      BasicJob.remove_one
+
+      expect(pending_job_queue).to have_received(:remove_one)
     end
   end
 end

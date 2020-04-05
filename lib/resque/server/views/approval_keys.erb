@@ -28,6 +28,9 @@
               order_param("num_jobs", @sort_by, @sort_order) }.to_param %>">
         Pending Jobs
       </a></th>
+      <th>
+        Num Running
+      </th>
       <th><a href="<%= u("approve") %>?<%=
         { sort:      "first_enqueued",
           page_size: @page_size,
@@ -64,3 +67,6 @@
 </div>
 <div class="approve_reset"/>
 <br/>
+<div>
+  Approval v<%= VERSION %>
+</div>

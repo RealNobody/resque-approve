@@ -12,31 +12,35 @@ module Resque
       #   class_name  - The name of the job class to be enqueued
       #   args        - The arguments for the job to be enqueued
       #
-      #   approval_key    - The approval key for the pending job that will be used to release/approve the job.
-      #                     This will default to nil.
-      #   approval_queue  - The queue that the pending job will be enqueued into.
-      #                     This will default to the queue for the job.
-      #   approval_at     - The time when the job is to be enqueued.
-      #                     This will call `enqueue_at` to enqueue the job, so this option will only work
-      #                     properly if you use the `resque-scheduler` gem.
+      #   requires_approval - If a class defines a default approval queue (similar to defining
+      #                       the queue for Resque), then instead of passing `approval_key: "key name"` in the
+      #                       parameters, you would pass `requires_approval: true`.  This way the key name
+      #                       appears only in the class and not scattered through the code.
+      #   approval_key      - The approval key for the pending job that will be used to release/approve the job.
+      #                       This will default to nil.
+      #   approval_queue    - The queue that the pending job will be enqueued into.
+      #                       This will default to the queue for the job.
+      #   approval_at       - The time when the job is to be enqueued.
+      #                       This will call `enqueue_at` to enqueue the job, so this option will only work
+      #                       properly if you use the `resque-scheduler` gem.
       #
-      #                     When using resque-scheduler, there are two ways to delay enqueue a job
-      #                     and how you do this depends on your use case.
+      #                       When using resque-scheduler, there are two ways to delay enqueue a job
+      #                       and how you do this depends on your use case.
       #
-      #                     Resque.enqueue YourJob, params, approval_key: "your key", approval_at: time
-      #                     This will enqueue the job for approval, which will pause the job until it is approved.
-      #                     Once approved, the job will delay enqueue for time, and will execute immediately or at
-      #                     that time depending on if the time has passed.
+      #                       Resque.enqueue YourJob, params, approval_key: "your key", approval_at: time
+      #                       This will enqueue the job for approval, which will pause the job until it is approved.
+      #                       Once approved, the job will delay enqueue for time, and will execute immediately or at
+      #                       that time depending on if the time has passed.
       #
-      #                     This is the recommended method to use as it will not run the job early, and it will allow
-      #                     you to release it without knowing if it is still delayed or not.
+      #                       This is the recommended method to use as it will not run the job early, and it will allow
+      #                       you to release it without knowing if it is still delayed or not.
       #
-      #                     You can also do:
-      #                     Resque.enqueue_at time, YourJob, params, approval_key: "your key"
-      #                     This will delay enqueue the job - because it has not been enqueued yet, the job
-      #                     cannot be releaed until the time has passed and the job is actually enqueued.
-      #                     Any time after that point, it can be released.  Releasing the key before this
-      #                     time has no effect on this job.
+      #                       You can also do:
+      #                       Resque.enqueue_at time, YourJob, params, approval_key: "your key"
+      #                       This will delay enqueue the job - because it has not been enqueued yet, the job
+      #                       cannot be releaed until the time has passed and the job is actually enqueued.
+      #                       Any time after that point, it can be released.  Releasing the key before this
+      #                       time has no effect on this job.
       class PendingJob
         include Resque::Plugins::Approve::RedisAccess
         include Comparable
@@ -86,8 +90,12 @@ module Resque
                              end
         end
 
+        def approval_keys?
+          @approval_keys ||= (approve_options.key?(:approval_key) || approve_options[:requires_approval])
+        end
+
         def requires_approval?
-          @requires_approval ||= approve_options.key?(:approval_key) || approve_options[:requires_approval]
+          @requires_approval ||= approval_keys? && too_many_running?
         end
 
         def approval_key
@@ -96,6 +104,21 @@ module Resque
 
         def approval_queue
           @approval_queue ||= approve_options[:approval_queue] || Resque.queue_from_class(klass)
+        end
+
+        def max_active_jobs?
+          return @max_active_jobs if defined?(@max_active_jobs)
+
+          @max_active_jobs = max_active_jobs.positive?
+        end
+
+        def max_active_jobs
+          max_val = ((klass.respond_to?(:max_active_jobs) && klass.max_active_jobs) ||
+              (klass.instance_variable_defined?(:@max_active_jobs) && klass.instance_variable_get(:@max_active_jobs)))
+
+          return -1 if max_val.blank?
+
+          max_val.to_i
         end
 
         def approval_at
@@ -143,6 +166,16 @@ module Resque
           @queue ||= Resque::Plugins::Approve::PendingJobQueue.new(approval_key)
         end
 
+        def max_jobs_perform_args(args)
+          remove_options = args.extract_options!.with_indifferent_access
+
+          return if remove_options.blank?
+
+          options = remove_options.slice!(:approval_queue, :approval_at, :requires_approval)
+
+          args << options if options.present?
+        end
+
         private
 
         def klass
@@ -162,10 +195,22 @@ module Resque
 
           self.approve_options = @args.pop
 
-          options = approve_options.slice!(:approval_key, :approval_queue, :approval_at)
+          options = slice_approval_options
 
           @args << options.to_hash if options.present?
         end
+
+        # rubocop:disable Layout/SpaceAroundOperators
+        def slice_approval_options
+          options                        = approve_options.slice!(:approval_key, :approval_queue, :approval_at, :requires_approval)
+          approve_options[:approval_key] ||= klass.default_queue_name if approve_options[:requires_approval]
+
+          options_approval_key(options)
+
+          options
+        end
+
+        # rubocop:enable Layout/SpaceAroundOperators
 
         def encode_args(*args)
           Resque.encode(args)
@@ -179,6 +224,27 @@ module Resque
 
         def approve_options=(value)
           @approve_options = (value&.dup || {}).with_indifferent_access
+        end
+
+        def too_many_running?
+          return true if queue.paused?
+          return true unless max_active_jobs?
+          return @too_many_running if defined?(@too_many_running)
+
+          num_running = queue.increment_running
+          max_jobs    = max_active_jobs
+
+          queue.decrement_running if num_running > max_jobs
+          @too_many_running = num_running > max_jobs
+        end
+
+        def options_approval_key(options)
+          return unless max_active_jobs?
+          return if options.key?(:approval_key)
+
+          klass.include Resque::Plugins::Approve::AutoApproveNext unless klass.included_modules.include?(Resque::Plugins::Approve::AutoApproveNext)
+
+          options[:approval_key] = approve_options.fetch(:approval_key) { klass.default_queue_name }
         end
       end
       # rubocop:enable Metrics/ClassLength
