@@ -41,6 +41,16 @@ RSpec.describe "approval_keys.erb" do
       expect(Resque).not_to have_received(:enqueue_to)
     end
 
+    it "should respond to /approve/reset_running" do
+      expect(queue).to receive(:reset_running).and_call_original
+
+      post "/approve/reset_running?#{{ approval_key: key }.to_param}"
+
+      expect(last_response).to be_redirect
+      expect(last_response.header["Location"]).to match(%r{approve/job_list\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}$})
+      expect(Resque).not_to have_received(:enqueue_to)
+    end
+
     it "should respond to /approve/delete_one_queue" do
       expect(queue).to receive(:remove_one).and_call_original
 
@@ -101,6 +111,7 @@ RSpec.describe "approval_keys.erb" do
 
     expect(last_response.body).to match %r{Approval Keys(\n *)?</a>}
 
+    expect(last_response.body).to match %r{action="/approve/reset_running\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/delete_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/delete_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/approve_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
@@ -128,6 +139,7 @@ RSpec.describe "approval_keys.erb" do
 
     expect(last_response.body).to match %r{Approval Keys(\n *)?</a>}
 
+    expect(last_response.body).to match %r{action="/approve/reset_running\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/delete_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/delete_one_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}
     expect(last_response.body).to match %r{action="/approve/approve_queue\?#{{ approval_key: key }.to_param.gsub("+", "\\\\+")}"}

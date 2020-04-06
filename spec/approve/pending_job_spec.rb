@@ -2,7 +2,6 @@
 
 require "rails_helper"
 
-# rubocop:disable Layout/AlignHash
 RSpec.describe Resque::Plugins::Approve::PendingJob do
   let(:key_list) { Resque::Plugins::Approve::ApprovalKeyList.new }
   let!(:key) { Faker::Lorem.sentence }
@@ -33,6 +32,13 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
   end
   let(:approval_only_args_job) do
     job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid, class_name: job_class, args: [approval_key: key])
+
+    key_list.add_job(job)
+
+    job
+  end
+  let(:approval_require_approval_job) do
+    job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid, class_name: job_class, args: [requires_approval: true])
 
     key_list.add_job(job)
 
@@ -106,7 +112,8 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
     it "extracts delay arguments from job with no approval arguments" do
       expect(hash_args_job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
-      expect(Resque::Plugins::Approve::PendingJob.new(hash_args_job.id).args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(hash_args_job.id).args).
+          to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
       expect(hash_args_job.approve_options).to eq({}.with_indifferent_access)
     end
 
@@ -114,6 +121,12 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
       expect(approval_only_args_job.args).to eq []
       expect(Resque::Plugins::Approve::PendingJob.new(approval_only_args_job.id).args).to eq []
       expect(approval_only_args_job.approve_options).to eq("approval_key" => key)
+    end
+
+    it "extracts delay arguments from job with no argument and require_approval" do
+      expect(approval_require_approval_job.args).to eq []
+      expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq []
+      expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Some_Queue", "requires_approval" => true)
     end
 
     it "extracts delay arguments from job with only hash arguments and approval_args" do
@@ -187,7 +200,8 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
     it "has args" do
       expect(job.args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
-      expect(Resque::Plugins::Approve::PendingJob.new(job.id).args).to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
+      expect(Resque::Plugins::Approve::PendingJob.new(job.id).args).
+          to eq [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"]
     end
 
     it "has the approval_key" do
@@ -199,11 +213,11 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
     end
 
     it "has the approval_at" do
-      expect(job.approval_at).to be_within(1.second).of(2.hours.from_now)
+      expect(job.approval_at).to be_within(2.seconds).of(2.hours.from_now)
     end
 
     it "has the queue_time" do
-      expect(job.queue_time).to be_within(1.second).of(2.hours.ago)
+      expect(job.queue_time).to be_within(2.seconds).of(2.hours.ago)
     end
 
     it "has the queue" do
@@ -267,6 +281,146 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
                                                                   "something else" => "something"])
 
       expect(job).not_to be_requires_approval
+    end
+
+    it "requires approval if requires_approval is passed" do
+      expect(approval_require_approval_job).to be_requires_approval
+    end
+
+    context "MaxActiveJob" do
+      let(:job_class) { MaxActiveJob }
+      let(:num_queue) { Resque::Plugins::Approve::PendingJobQueue.new("Some_Queue") }
+
+      before(:each) do
+        num_queue.reset_running
+      end
+
+      it "does not require approval if num jobs below max" do
+        expect(approval_require_approval_job).not_to be_requires_approval
+
+        expect(approval_require_approval_job.args).to eq ["approval_key" => "Some_Queue"]
+        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Some_Queue", "requires_approval" => true)
+      end
+
+      it "does require approval if num jobs above max" do
+        10.times { num_queue.increment_running }
+
+        expect(approval_require_approval_job).to be_requires_approval
+
+        expect(approval_require_approval_job.args).to eq ["approval_key" => "Some_Queue"]
+        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Some_Queue", "requires_approval" => true)
+      end
+
+      it "calls the perform function" do
+        allow(Resque.logger).to receive(:warn).and_call_original
+
+        MaxActiveJob.perform(*approval_require_approval_job.args)
+
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[]").exactly(2).times
+      end
+
+      it "does not approve if number of running jobs too high" do
+        approval_require_approval_job
+
+        expect(Resque::Plugins::Approve::PendingJobQueue.new("Some_Queue").num_jobs).to eq 1
+
+        10.times { num_queue.increment_running }
+
+        allow(Resque.logger).to receive(:warn).and_call_original
+
+        job_class.approve_one
+
+        expect(Resque.logger).not_to have_received(:warn)
+        expect(Resque::Plugins::Approve::PendingJobQueue.new("Some_Queue").num_jobs).to eq 1
+
+        expect(num_queue.num_running.to_i).to eq 10
+      end
+
+      it "approves the next item in the queue" do
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        MaxActiveJob.perform(*approval_require_approval_job.args)
+
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("Some_Queue").exactly(2).times
+      end
+
+      it "approves the next item in the queue even if there is an exception" do
+        allow(Resque.logger).to receive(:warn).with("Args:\n[]").and_raise "Error"
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        expect { MaxActiveJob.perform(*approval_require_approval_job.args) }.to raise_error
+
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[]").exactly(2).times
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("Some_Queue").exactly(2).times
+      end
+
+      it "approves the next item in the queue if non-default queue used" do
+        job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid, class_name: job_class, args: [approval_key: "New Key"])
+
+        key_list.add_job(job)
+
+        allow(Resque.logger).to receive(:warn).and_call_original
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        MaxActiveJob.perform(*job.args)
+
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[]").exactly(2).times
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("New Key").exactly(2).times
+      end
+
+      it "approves the next item in the queue if non-default queue used and queue full" do
+        job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid, class_name: job_class, args: [requires_approval: true])
+
+        10.times { num_queue.increment_running }
+        key_list.add_job(job)
+
+        allow(Resque.logger).to receive(:warn).and_call_original
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        MaxActiveJob.perform(*job.args)
+
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("Some_Queue").exactly(2).times
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[]").exactly(2).times
+        expect(num_queue.num_running.to_i).to eq 9
+      end
+
+      it "enqueues a job" do
+        allow(Resque.logger).to receive(:warn).and_call_original
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        Resque.enqueue MaxActiveJob, requires_approval: true
+
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[]")
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("Some_Queue")
+      end
+
+      it "enqueues a job with arguments" do
+        allow(Resque.logger).to receive(:warn).and_call_original
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        Resque.enqueue MaxActiveJob, param: "value", requires_approval: true
+
+        expect(Resque.logger).to have_received(:warn).with("Args:\n[{\"param\":\"value\"}]")
+        expect(Resque::Plugins::Approve).to have_received(:approve_one).with("Some_Queue")
+      end
+
+      it "does not enqueue a job if paused" do
+        num_queue.pause
+
+        expect(num_queue.num_jobs).to be_zero
+
+        allow(Resque.logger).to receive(:warn).and_call_original
+        allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
+
+        Resque.enqueue MaxActiveJob, requires_approval: true
+
+        expect(Resque.logger).not_to have_received(:warn).with("Args:\n[]")
+        expect(Resque::Plugins::Approve).not_to have_received(:approve_one).with("Some_Queue")
+
+        expect(num_queue.num_jobs).to eq 1
+      end
     end
   end
 
@@ -345,5 +499,44 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
       expect(Resque::Plugins::Approve::ApprovalKeyList.new.num_queues).to eq 0
     end
   end
+
+  describe "max_active_jobs?" do
+    it "returns false if not set on class" do
+      expect(no_args_job.max_active_jobs?).to be_falsey
+    end
+
+    context "MaxActiveJob" do
+      let(:job_class) { MaxActiveJob }
+
+      it "returns true if a max is set" do
+        expect(no_args_job.max_active_jobs?).to be_truthy
+      end
+    end
+  end
+
+  describe "requires_approval" do
+    context "DefaultApprovalQueue" do
+      let(:job_class) { DefaultApprovalQueue }
+
+      it "sets the key to the default queue" do
+        expect(approval_require_approval_job.args).to eq []
+        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq []
+        expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Default Approval Queue", "requires_approval" => true)
+      end
+    end
+  end
+
+  describe "max_active_jobs" do
+    it "returns -1 if not set on class" do
+      expect(no_args_job.max_active_jobs).to eq(-1)
+    end
+
+    context "MaxActiveJob" do
+      let(:job_class) { MaxActiveJob }
+
+      it "returns value if max set" do
+        expect(no_args_job.max_active_jobs).to eq 10
+      end
+    end
+  end
 end
-# rubocop:enable Layout/AlignHash

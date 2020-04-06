@@ -11,6 +11,8 @@ module Resque
 
       included do
         self.auto_delete_approval_key = false
+        self.max_active_jobs          = -1
+        self.default_queue_name       = nil
       end
 
       class << self
@@ -46,20 +48,60 @@ module Resque
           @auto_delete_approval_key
         end
 
+        def max_active_jobs=(value)
+          @max_active_jobs = value
+        end
+
+        def max_active_jobs
+          @max_active_jobs
+        end
+
+        def default_queue_name=(value)
+          @default_queue_name = value
+        end
+
+        def default_queue_name
+          @default_queue_name || Resque.queue_from_class(self)
+        end
+
+        def approve
+          Resque::Plugins::Approve.approve(default_queue_name)
+        end
+
+        def approve_one
+          Resque::Plugins::Approve.approve_one(default_queue_name)
+        end
+
+        def approve_num(num_approve)
+          Resque::Plugins::Approve.approve_num(num_approve, default_queue_name)
+        end
+
+        def remove
+          Resque::Plugins::Approve.remove(default_queue_name)
+        end
+
+        def remove_one
+          Resque::Plugins::Approve.remove_one(default_queue_name)
+        end
+
         # It is possible to run a job immediately using `Resque.push`.  This will bypass the queue and run
         # the job immediately.  This will prevent such a job from enqueuing, and instead pause it for approval
         #
         # The primary reason for this is to prevent the job from receiving the approval parameters it is not
         # supposed to have when actually run/enqueued.
+        #
+        # NOTE:  This does not validate running counts.
         def before_perform_approve(*args)
           # Check if the job needs to be approved, and if so, do not enqueue it.
           job = PendingJob.new(SecureRandom.uuid, class_name: name, args: args)
 
-          if job.requires_approval?
+          if job.approval_keys? && !job.max_active_jobs?
             ApprovalKeyList.new.add_job(job)
 
             raise Resque::Job::DontPerform, "The job has not been approved yet."
           else
+            job.max_jobs_perform_args(args)
+
             true
           end
         end
@@ -72,6 +114,8 @@ module Resque
             ApprovalKeyList.new.add_job(job)
             false
           else
+            job.max_jobs_perform_args(args)
+
             true
           end
         end

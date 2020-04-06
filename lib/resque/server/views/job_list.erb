@@ -12,6 +12,10 @@
   </a>
 </p>
 
+<p>
+  Num active jobs in this queue = <%= pending_queue.num_running %>
+</p>
+
 <% if pending_queue.paused? %>
   <p>
     Paused. Skipped <%= pending_queue.num_ignored %> resume actions.
@@ -38,6 +42,11 @@
                     page_size:     @page_size }) %>
 
   <br/>
+
+  <form method="POST" action="<%= u("approve/reset_running") %>?<%=
+    { approval_key: pending_queue.approval_key }.to_param %>">
+    <input type="submit" name="" value="Reset Running"/>
+  </form>
 
   <form method="POST" action="<%= u("approve/delete_queue") %>?<%=
     { approval_key: pending_queue.approval_key }.to_param %>">
@@ -74,3 +83,8 @@
 
 <div class="approve_reset"/>
 <br/>
+<div>
+  <p>
+    Approval v<%= VERSION %>
+  </p>
+</div>
