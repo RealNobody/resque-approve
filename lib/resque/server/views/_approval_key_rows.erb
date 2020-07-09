@@ -2,7 +2,7 @@
   <tr>
     <td>
       <a href="<%= u("approve") %>/job_list?<%= { approval_key: pending_job.approval_key }.to_param %>">
-        <%= pending_job.approval_key %>
+        <%= pending_job.approval_key.presence || "&nbsp;&nbsp;&nbsp;".html_safe %>
       </a>
     </td>
     <td>

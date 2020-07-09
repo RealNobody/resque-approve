@@ -155,9 +155,9 @@ module Resque
           # Make sure the job is loaded into memory so we can use it even though we are going to delete it.
           stored_values
 
-          return if class_name.blank?
-
           redis.del(job_key)
+
+          return if class_name.blank?
 
           queue.remove_job(self)
         end

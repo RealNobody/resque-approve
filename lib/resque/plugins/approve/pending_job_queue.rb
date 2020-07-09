@@ -26,10 +26,12 @@ module Resque
         end
 
         def increment_running
+          Resque::Plugins::Approve::ApprovalKeyList.new.add_key approval_key
           redis.incr(running_key)
         end
 
         def decrement_running
+          Resque::Plugins::Approve::ApprovalKeyList.new.add_key approval_key
           redis.decr(running_key)
         end
 
