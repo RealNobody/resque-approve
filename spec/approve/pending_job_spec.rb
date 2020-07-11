@@ -298,8 +298,9 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
       it "does not require approval if num jobs below max" do
         expect(approval_require_approval_job).not_to be_requires_approval
 
-        expect(approval_require_approval_job.args).to eq ["approval_key" => "Some_Queue"]
-        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.args).not_to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.uncompressed_args).to eq ["approval_key" => "Some_Queue"]
+        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).uncompressed_args).to eq ["approval_key" => "Some_Queue"]
         expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Some_Queue", "requires_approval" => true)
       end
 
@@ -308,8 +309,9 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
         expect(approval_require_approval_job).to be_requires_approval
 
-        expect(approval_require_approval_job.args).to eq ["approval_key" => "Some_Queue"]
-        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).args).to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.args).not_to eq ["approval_key" => "Some_Queue"]
+        expect(approval_require_approval_job.uncompressed_args).to eq ["approval_key" => "Some_Queue"]
+        expect(Resque::Plugins::Approve::PendingJob.new(approval_require_approval_job.id).uncompressed_args).to eq ["approval_key" => "Some_Queue"]
         expect(approval_require_approval_job.approve_options).to eq("approval_key" => "Some_Queue", "requires_approval" => true)
       end
 
@@ -386,7 +388,7 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
         expect(num_queue.num_running.to_i).to eq 9
       end
 
-      it "enqueues a job" do
+      it "enqueues the job" do
         allow(Resque.logger).to receive(:warn).and_call_original
         allow(Resque::Plugins::Approve).to receive(:approve_one).and_call_original
 
@@ -536,6 +538,46 @@ RSpec.describe Resque::Plugins::Approve::PendingJob do
 
       it "returns value if max set" do
         expect(no_args_job.max_active_jobs).to eq 10
+      end
+    end
+  end
+
+  describe "uncompressed_args" do
+    let(:test_args) { [1, "fred", "something else", 888, "approval_key" => "Some_Queue", "other_arg" => 1, "something else" => "something"] }
+    let(:compressed_args) { [{ :resque_compressed => true, :payload => MaxActiveJob.compressed_args(test_args) }] }
+    let(:job_class) { MaxActiveJob }
+
+    it "decompresses args" do
+      job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid,
+                                                     class_name: job_class,
+                                                     args:       compressed_args)
+
+      key_list.add_job(job)
+
+      expect(Resque::Plugins::Approve::PendingJob.new(job.id).uncompressed_args).to eq test_args
+    end
+
+    it "does not decompress args if not compressed" do
+      job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid,
+                                                     class_name: job_class,
+                                                     args:       test_args)
+
+      key_list.add_job(job)
+
+      expect(Resque::Plugins::Approve::PendingJob.new(job.id).uncompressed_args).to eq test_args
+    end
+
+    context "Not compressable" do
+      let(:test_args) { [1, "fred", "something else", 888, "other_arg" => 1, "something else" => "something"] }
+
+      it "does not decompress args if not compressable" do
+        job = Resque::Plugins::Approve::PendingJob.new(SecureRandom.uuid,
+                                                       class_name: BasicJob,
+                                                       args:       test_args)
+
+        key_list.add_job(job)
+
+        expect(Resque::Plugins::Approve::PendingJob.new(job.id).uncompressed_args).to eq test_args
       end
     end
   end

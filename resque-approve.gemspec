@@ -27,6 +27,7 @@ Gem::Specification.new do |s|
   s.add_development_dependency "cornucopia"
   s.add_development_dependency "faker"
   s.add_development_dependency "gem-release"
+  s.add_development_dependency "resque-compressible"
   s.add_development_dependency "resque-scheduler"
   s.add_development_dependency "rspec-rails", "> 3.9.1"
   s.add_development_dependency "rubocop"
