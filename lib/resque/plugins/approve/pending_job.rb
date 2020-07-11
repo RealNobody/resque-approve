@@ -64,6 +64,10 @@ module Resque
           @class_name ||= stored_values[:class_name]
         end
 
+        def uncompressed_args
+          decompress_args(args)
+        end
+
         def args
           @args = if @args.present?
                     @args
@@ -131,9 +135,9 @@ module Resque
 
         def enqueue_job
           return_value = if approval_at.present?
-                           Resque.enqueue_at_with_queue approval_queue, approval_at, klass, *args
+                           Resque.enqueue_at_with_queue approval_queue, approval_at, klass, *compressed_args(args)
                          else
-                           Resque.enqueue_to approval_queue, klass, *args
+                           Resque.enqueue_to approval_queue, klass, *compressed_args(args)
                          end
 
           delete
@@ -167,16 +171,41 @@ module Resque
         end
 
         def max_jobs_perform_args(args)
-          remove_options = args.extract_options!.with_indifferent_access
+          return compressed_max_jobs_perform_args(args) if compressed?(args)
 
-          return if remove_options.blank?
+          return unless args.last.is_a?(Hash)
 
-          options = remove_options.slice!(:approval_queue, :approval_at, :requires_approval)
+          remove_options = args[-1]
 
-          args << options if options.present?
+          %i[approval_queue approval_at requires_approval].each do |key|
+            remove_options.delete(key)
+            remove_options.delete(key.to_s)
+          end
+        end
+
+        def compressed?(basic_args)
+          return false unless compressable?
+
+          described_class.compressed?(basic_args)
+        end
+
+        def compressable?
+          !described_class.blank? &&
+              described_class.singleton_class.included_modules.map(&:name).include?("Resque::Plugins::Compressible")
         end
 
         private
+
+        def compressed_max_jobs_perform_args(args)
+          decompressed = decompress_args(args)
+
+          max_jobs_perform_args(decompressed)
+          decompressed = compressed_args(decompressed)[0]
+
+          compress_arg            = args[0]
+          compress_arg[:payload]  = decompressed[:payload] if compress_arg.key?(:payload)
+          compress_arg["payload"] = decompressed[:payload] if compress_arg.key?("payload")
+        end
 
         def klass
           @klass ||= class_name.constantize
@@ -191,13 +220,16 @@ module Resque
         end
 
         def extract_approve_options
-          return if args.blank? || !@args[-1].is_a?(Hash)
+          extract_args = uncompressed_args
 
-          self.approve_options = @args.pop
+          return if extract_args.blank? || !extract_args[-1].is_a?(Hash)
+
+          self.approve_options = extract_args.pop.with_indifferent_access
 
           options = slice_approval_options
 
-          @args << options.to_hash if options.present?
+          extract_args << options.to_hash if options.present?
+          @args = compressed_args(extract_args)
         end
 
         # rubocop:disable Layout/SpaceAroundOperators
@@ -242,11 +274,40 @@ module Resque
           return unless max_active_jobs?
           return if options.key?(:approval_key)
 
-          klass.include Resque::Plugins::Approve::AutoApproveNext unless klass.included_modules.include?(Resque::Plugins::Approve::AutoApproveNext)
+          if compressable?
+            unless klass.singleton_class.included_modules.include?(Resque::Plugins::Approve::CompressableAutoApproveNext)
+              klass.extend Resque::Plugins::Approve::CompressableAutoApproveNext
+            end
+          else
+            klass.include Resque::Plugins::Approve::AutoApproveNext unless klass.included_modules.include?(Resque::Plugins::Approve::AutoApproveNext)
+          end
 
           options[:approval_key] = approve_options.fetch(:approval_key) { klass.default_queue_name }
         end
+
+        def described_class
+          return if class_name.blank?
+
+          class_name.constantize
+        rescue StandardError
+          nil
+        end
+
+        def compressed_args(compress_args)
+          return compress_args unless compressable?
+          return compress_args if described_class.compressed?(compress_args)
+
+          [{ :resque_compressed => true, :payload => described_class.compressed_args(compress_args) }]
+        end
+
+        def decompress_args(basic_args)
+          return basic_args unless compressable?
+          return basic_args unless described_class.compressed?(basic_args)
+
+          described_class.uncompressed_args(basic_args.first[:payload] || basic_args.first["payload"])
+        end
       end
+
       # rubocop:enable Metrics/ClassLength
     end
   end

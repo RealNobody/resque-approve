@@ -19,7 +19,7 @@
           (<%= job_details.queue_time %>)
         </td>
         <td>
-          <pre><code><%= "".html_safe + job_details.args.to_yaml %></code></pre>
+          <pre><code><%= "".html_safe + job_details.uncompressed_args.to_yaml %></code></pre>
         </td>
         <td>
           <pre><code><%= "".html_safe + job_details.approve_options.to_hash.to_yaml %></code></pre>

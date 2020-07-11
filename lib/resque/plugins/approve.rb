@@ -111,7 +111,10 @@ module Resque
           job = PendingJob.new(SecureRandom.uuid, class_name: name, args: args)
 
           if job.requires_approval?
+            return false if job.compressable? && !job.compressed?(args)
+
             ApprovalKeyList.new.add_job(job)
+
             false
           else
             job.max_jobs_perform_args(args)

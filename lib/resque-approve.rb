@@ -7,5 +7,6 @@ require File.expand_path(File.join("resque", "plugins", "approve", "pending_job_
 require File.expand_path(File.join("resque", "plugins", "approve", "approval_key_list"), File.dirname(__FILE__))
 require File.expand_path(File.join("resque", "plugins", "approve", "cleaner"), File.dirname(__FILE__))
 require File.expand_path(File.join("resque", "plugins", "approve", "auto_approve_next"), File.dirname(__FILE__))
+require File.expand_path(File.join("resque", "plugins", "approve", "compressable_auto_approve_next"), File.dirname(__FILE__))
 
 require File.expand_path(File.join("resque", "plugins", "approve"), File.dirname(__FILE__))
