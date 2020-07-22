@@ -43,11 +43,6 @@
 
   <br/>
 
-  <form method="POST" action="<%= u("approve/reset_running") %>?<%=
-    { approval_key: pending_queue.approval_key }.to_param %>">
-    <input type="submit" name="" value="Reset Running"/>
-  </form>
-
   <form method="POST" action="<%= u("approve/delete_queue") %>?<%=
     { approval_key: pending_queue.approval_key }.to_param %>">
     <input type="submit" name="" value="Delete All"/>
@@ -68,6 +63,11 @@
     <input type="submit" name="" value="Approve One"/>
   </form>
 <% end %>
+
+<form method="POST" action="<%= u("approve/reset_running") %>?<%=
+  { approval_key: pending_queue.approval_key }.to_param %>">
+  <input type="submit" name="" value="Reset Running"/>
+</form>
 
 <% if pending_queue.paused? %>
   <form method="POST" action="<%= u("approve/resume") %>?<%=
