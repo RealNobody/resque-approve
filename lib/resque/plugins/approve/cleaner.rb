@@ -33,8 +33,10 @@ module Resque
           def cleanup_queues
             key_list = Resque::Plugins::Approve::ApprovalKeyList.new
 
-            key_list.queues.each do |pending_job_queue|
-              key_list.remove_key(pending_job_queue.approval_key) if pending_job_queue.num_jobs.zero?
+            key_list.job_queues.map do |pending_job_queue|
+              next unless pending_job_queue.num_jobs.zero?
+
+              key_list.remove_key(pending_job_queue.approval_key)
             end
           end
         end

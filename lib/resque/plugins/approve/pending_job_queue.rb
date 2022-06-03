@@ -148,7 +148,9 @@ module Resque
         private
 
         def remove_approval_key(job)
-          return unless job.class_name.constantize.auto_delete_approval_key
+          klass = job.class_name.presence&.safe_constantize
+
+          return if klass && !klass.auto_delete_approval_key
 
           ApprovalKeyList.new.remove_key(approval_key) if num_jobs.zero?
         end

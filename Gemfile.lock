@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    resque-approve (0.0.15)
+    resque-approve (0.0.16)
       redis
       redis-namespace
       resque

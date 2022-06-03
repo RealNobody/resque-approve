@@ -134,6 +134,8 @@ module Resque
         end
 
         def enqueue_job
+          return if klass.blank?
+
           return_value = if approval_at.present?
                            Resque.enqueue_at_with_queue approval_queue, approval_at, klass, *compressed_args(args)
                          else
@@ -208,7 +210,7 @@ module Resque
         end
 
         def klass
-          @klass ||= class_name.constantize
+          @klass ||= class_name.presence&.safe_constantize
         end
 
         def job_key
@@ -288,7 +290,7 @@ module Resque
         def described_class
           return if class_name.blank?
 
-          class_name.constantize
+          class_name.safe_constantize
         rescue StandardError
           nil
         end
